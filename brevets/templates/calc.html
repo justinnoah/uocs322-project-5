@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-   <head>
+  <head>
       <title>ACP Controle Times</title>
       <meta charset="utf-8">
       <!-- 'viewport' is used by bootstrap to respond to device size -->
@@ -51,7 +51,7 @@
          <!-- Design on bootstrap grid -->
          <form role="form">
             <div class="row">
-               <div class="col-md-4">
+               <div class="col-md-3">
                   <label>Distance</label>
                   <select name="distance" id="brevet_dist_km">
                      <option value="200">200km</option>
@@ -62,11 +62,16 @@
                   </select>
                </div>
                <!-- columns 1 to 4  -->
-               <div class="col-md-6">
+               <div class="col-md-5">
                   <label>Begins at</label>
                   <input type="datetime-local" name="begin_date" id="begin_date" value="2021-01-01T00:00" />
                </div>
                <!-- columns 5 to 10 -->
+               <div class="col-md-1">
+                 <input type="button" name="SubmitWorksheetButton" id="SubmitWorksheetButton" value="Submit"/>
+               </div>
+               <div class="col-md-1">
+                 <input type="button" name="DisplayWorksheetButton" id="DisplayWorksheetButton" value="Display" />
             </div>
             <!-- row -->
             <br />  <!-- a little vertical space -->
@@ -122,11 +127,11 @@
             function calc_times(control) {
               var km = control.find("input[name='km']").val();
               var start_time = $("input[id='begin_date']").val();
-              var max_km = $("#brevet_dist_km").val();
+              var brevet_dist = $("#brevet_dist_km option:selected").val();
               var open_time_field = control.find("input[name='open']");
               var close_time_field = control.find("input[name='close']");
 
-              $.getJSON(TIME_CALC_URL, {km: km, start_time: start_time, max_km: max_km}).done(
+              $.getJSON(TIME_CALC_URL, {km: km, start_time: start_time, control_dist: brevet_dist}).done(
                 function(data) {
                    var times = data.result;
                    console.log("Got a response: ");
@@ -144,7 +149,8 @@
             }
 
             $(document).ready(function(){
-             // Do the following when the page is finished loading
+              // Do the following when the page is finished loading
+               let headers = ["km", "location"];
 
                 $('input[name="miles"]').change(
                    function() {
@@ -169,9 +175,55 @@
                        // Then calculate times for this entry
                        calc_times(control_entry);
                     });
-
-               });
-
+              $('input[name="SubmitWorksheetButton"]').on('click', 
+                function() {
+                  var worksheet = [];
+                  var rows = $('table[class="control_time_table"] > tbody > tr[class="control"]');
+                  var header_selection = $('table[class="control_time_table"] > tbody > tr:not(.control) > th');
+                  rows.each(function (idx) {
+                    let col_pre = 'table[class="control_time_table"] > tbody > tr[class="control"]:nth(' + idx + ') > td:nth(';
+                    let km = col_pre + '1) > input';
+                    let loc = col_pre + '2) > input';
+                    let row = {};
+                    row['row'] = idx;
+                    row['km'] = $(km).val();
+                    row['loc'] = $(loc).val();
+                    worksheet.push(row);
+                  });
+                  console.log("Submitting: " + JSON.stringify(worksheet));
+                  $.ajax({
+                    type: 'POST',
+                    url: '/_save_worksheet',
+                    data: JSON.stringify(worksheet),
+                    sucess: () => {console.log("Submitted worksheet!");},
+                    dataType: 'json'
+                  });
+                });
+              $('input[name="DisplayWorksheetButton"]').on('click', 
+                function() {
+                  $.get('/_restore_worksheet', function(data) {
+                    if (Object.hasOwn(data, 'worksheet')) {
+                      let worksheet = data.worksheet;
+                      worksheet.forEach((element, idx) => {
+                        let el_km = element.km ? element.km : 0;
+                        if (el_km == 0 && idx != 0) {
+                          return;
+                        }
+                        let el_loc = element.loc ? element.loc : "";
+                        let row_num = element.row;
+                        let col_selector_pre = 'table[class="control_time_table"] > tbody > tr[class="control"]:nth(' + row_num + ') > td:nth(';
+                        let km = col_selector_pre + '1) > input';
+                        let loc = col_selector_pre + '2) > input';
+                        $(km).eq(0).val(el_km);
+                        $(loc).eq(0).val(el_loc);
+                        $(km).trigger('change');
+                      });
+                    } else {
+                      console.debug("Server sent back garbage");
+                    }
+                  });
+                });
+             });
          </script>
       </div>
    </body>
