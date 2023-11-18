@@ -26,10 +26,18 @@ Use:
 
 Open ```http://localhost:5000``` in your favorite browser
 
+---------------------
+
 Sources:
+
 https://mongodb.com
+
 https://pymongo.readthedocs.io
+
 https://developer.mozilla.org
+
 https://docs.docker.com
+
 https://stackoverflow.com/questions/1394020/jquery-each-backwards
+
 https://stackoverflow.com/questions/499405/change-the-selected-value-of-a-drop-down-list-with-jquery
