@@ -113,9 +113,9 @@ def validate_worksheet(worksheet):
         if _id != 0 and (km == "" or km is None) and final_row_id == -1:
             continue
 
-        # If this is the first row of the worksheet and it is empty in the km slot, error
-        if _id == 0 and final_row_id == -1:
-            return f"The worksheet is empty, not submitting."
+        if _id == 0 and not (km in ["0", 0]):
+            return f"The first line in the worksheet must be 0."
+
 
         # Check for an empty line within the control rows of the worksheet
         if (km in zeros or km is None) and final_row_id != -1 and _id != 0:
@@ -139,7 +139,7 @@ def validate_worksheet(worksheet):
                 return f"The final control distance must be between {brevet_dist} and {prev_km}."
             # If the last row in the worksheet has a value less than brevet_dist, that's an error
             if km < brevet_dist:
-                return f"The last control point ({km}km) must be at least {brevet_dist}km. Please try again."
+                return f"The final control point ({km}km) must be at least ({brevet_dist}km). Please try again."
             final_row_id = _id
 
         # Verify the kilometers in the rows grow sequentially
@@ -148,6 +148,10 @@ def validate_worksheet(worksheet):
 
         if km > 0 and final_row_id != -1:
             prev_km = km
+
+        # If this is the first row of the worksheet and it is empty in the km slot, error
+        if _id == 0 and final_row_id == -1:
+            return f"The worksheet is empty, not submitting."
 
     return f""
 

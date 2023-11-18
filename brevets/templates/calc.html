@@ -75,7 +75,7 @@
                </div>
              </div>
             <div class="row">
-               <div class="col" style="overflow: auto;"><span style="text-align: left; color: red; white-space: nowrap;" id="errors"></span></div>
+               <div class="col" style="overflow: auto;"><span style="text-align: left; color: red; white-space: nowrap;" id="errors">&nbsp;</span></div>
             </div>
             <!-- row -->
             <br />  <!-- a little vertical space -->
@@ -150,18 +150,14 @@
 
             $(document).ready(function(){
               function reset_worksheet() {
-                console.log("Assigning variable names");
-                console.log("Resetting the brevet control distance");
                 let brevet_dist = $("#brevet_dist_km option[value='200']").attr("selected", "selected");
 
                 let start_time = $("#begin_date");
                 let km_row_inputs = $("input[name='km']");
-                console.log("km_row_inputs length: " + km_row_inputs.length);
                 km_row_inputs.each(function (idx, input) {
                   console.log("Clearing km in row " + idx);
                   $(input).val(null).change();
                 });
-                console.log("Resetting start time");
                 start_time.val('2023-11-07T00:00');
               }
               $('input[name="miles"]').change(
@@ -193,7 +189,7 @@
                   // - Brevet Control Distance
                   // - Rows with values in the KM field
                   function() {
-                    $("#errors").text("");
+                    $("#errors").text(" ");
                     let worksheet_rows = [];
                     let worksheet = {}
                     let start_time = $("#begin_date").val();
@@ -210,7 +206,6 @@
                       worksheet_row['loc'] = $(loc).val();
                       worksheet_rows.push(worksheet_row);
                     });
-                    console.log("Finished Iterating, now to send the worksheet to the server");
                     worksheet["worksheet"] = worksheet_rows;
                     worksheet["start_time"] = start_time;
                     worksheet["brevet_dist"] = brevet_dist;
@@ -221,10 +216,10 @@
                       contentType: "application/json",
                       complete: (data, status_msg) => {
                         let msg = data.responseJSON.message;
-                        console.log("Received: '" + msg + "'")
                         if (msg != "") {
-                          $("#errors").css('color', 'red').text(msg)
+                          $("#errors").css('color', 'red').text(msg);
                         } else {
+                          $("#errors").css('color', 'green').text("Successfully submitted worksheet.");
                           reset_worksheet();
                         }
                       },
@@ -234,21 +229,18 @@
               );
               $('input[name="DisplayWorksheetButton"]').on('click', 
                 function() {
-                  let error_msg = "";
+                  let error_msg = " ";
                   $.get('/_restore_worksheet', function(data) {
                     if (Object.hasOwn(data, 'data')) {
                       if ((Object.hasOwn(data.data, 'worksheet')) && (Object.hasOwn(data.data, 'start_time'))) {
-                        console.log("Begin Date: " + data.data.start_time);
                         $("#begin_date").val(data.data.start_time).change();
                         let start_time = $("input[id='begin_date']").val();
                         let worksheet = data.data.worksheet;
                         let brevet_control_dist = data.data.brevet_dist;
                         let brevet_dist = $("#brevet_dist_km option[value='" + brevet_control_dist + "']").attr("selected", "selected");
                         worksheet.forEach((element, idx) => {
-                          console.log("ELEMENT.KM: " + element.km);
                           let el_km = element.km ? element.km : 0;
                           if (el_km == 0 && idx != 0) {
-                            console.log(idx + " is an empty row");
                             return;
                           }
                           let el_loc = element.loc ? element.loc : "";
