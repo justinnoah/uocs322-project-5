@@ -23,17 +23,10 @@
          integrity="sha384-+YQ4JLhjyBLPDQt//I+STsc9iw4uQqACwlvpslubQzn4u2UU2UFM80nGisd026JF"
          crossorigin="anonymous"></script>
       <!-- moment.js is the JavaScript equivalent of arrow.py -->
-      <script
-      src="{{ url_for('static', filename="js/moment.min.js") }}"></script>
-     <style>
-       #errors {
-         color: red,
-         overflow: auto,
-       }
-     </style>
+      <script src="{{ url_for('static', filename="js/moment.min.js") }}"></script>
+     <!-- Our own stylesheet -->
+     <link rel="stylesheet" href="/static/css/calc.css" />
    </head>
-   <!-- Our own stylesheet -->
-   <link rel="stylesheet" href="/static/css/calc.css" />
    <body>
       <div class="container">
          <h1>ACP Brevet Times</h1>
@@ -57,7 +50,8 @@
          <!-- Design on bootstrap grid -->
          <form role="form">
             <div class="row">
-               <div class="col-md-3">
+              <!-- colum 0 -->
+               <div class="col-md-2">
                   <label>Distance</label>
                   <select name="distance" id="brevet_dist_km">
                      <option value="200">200km</option>
@@ -67,18 +61,21 @@
                      <option value="1000">1000km</option>
                   </select>
                </div>
-               <!-- columns 1 to 4  -->
-               <div class="col-md-5">
+               <!-- columns 1 to 7  -->
+               <div class="col-md-4">
                   <label>Begins at</label>
                   <input type="datetime-local" name="begin_date" id="begin_date" value="2021-01-01T00:00" />
                </div>
-               <div class="col-md-2"><span id="errors"></span></div>
-               <!-- columns 5 to 10 -->
+               <!-- columns 9 and 10 -->
                <div class="col-md-1">
                  <input type="button" name="SubmitWorksheetButton" id="SubmitWorksheetButton" value="Submit"/>
                </div>
                <div class="col-md-1">
                  <input type="button" name="DisplayWorksheetButton" id="DisplayWorksheetButton" value="Display" />
+               </div>
+             </div>
+            <div class="row">
+               <div class="col" style="overflow: auto;"><span style="text-align: left; color: red; white-space: nowrap;" id="errors"></span></div>
             </div>
             <!-- row -->
             <br />  <!-- a little vertical space -->
@@ -153,111 +150,126 @@
 
             $(document).ready(function(){
               function reset_worksheet() {
-                $("input").each(function (id, input) {
-                  input.reset();
-                });
-              }
-              // Do the following when the page is finished loading
-               let headers = ["km", "location"];
+                console.log("Assigning variable names");
+                console.log("Resetting the brevet control distance");
+                let brevet_dist = $("#brevet_dist_km option[value='200']").attr("selected", "selected");
 
-                $('input[name="miles"]').change(
-                   function() {
-                       var miles = parseFloat($(this).val());
-                       var km = (1.609344 * miles).toFixed(6) ;
-                       console.log("Converted " + miles + " miles to " + km + " kilometers");
-                       var control_entry = $(this).parents(".control")
-                       var target = control_entry.find("input[name='km']");
-                       target.val( km );
-                       // Then calculate times for this entry
-                       calc_times(control_entry);
-                    });
+                let start_time = $("#begin_date");
+                let km_row_inputs = $("input[name='km']");
+                console.log("km_row_inputs length: " + km_row_inputs.length);
+                km_row_inputs.each(function (idx, input) {
+                  console.log("Clearing km in row " + idx);
+                  $(input).val(null).change();
+                });
+                console.log("Resetting start time");
+                start_time.val('2023-11-07T00:00');
+              }
+              $('input[name="miles"]').change(
+                function() {
+                  var miles = parseFloat($(this).val());
+                  var km = (1.609344 * miles).toFixed(6) ;
+                  console.log("Converted " + miles + " miles to " + km + " kilometers");
+                  var control_entry = $(this).parents(".control")
+                  var target = control_entry.find("input[name='km']");
+                  target.val( km );
+                  // Then calculate times for this entry
+                  calc_times(control_entry);
+                });
 
                 $('input[name="km"]').change(
-                   function() {
-                       var km = parseFloat($(this).val());
-                       var miles = (0.621371 * km).toFixed(6) ;
-                       console.log("Converted " + km + " km to " + miles + " miles");
-                       var control_entry = $(this).parents(".control")
-                       var target = control_entry.find("input[name='miles']");
-                       target.val( miles );
-                       // Then calculate times for this entry
-                       calc_times(control_entry);
+                  function() {
+                    var km = parseFloat($(this).val());
+                    var miles = (0.621371 * km).toFixed(6) ;
+                    console.log("Converted " + km + " km to " + miles + " miles");
+                    var control_entry = $(this).parents(".control")
+                    var target = control_entry.find("input[name='miles']");
+                    target.val( miles );
+                    // Then calculate times for this entry
+                    calc_times(control_entry);
+                });
+                $('input[name="SubmitWorksheetButton"]').on('click', 
+                  // Collects and POSTs
+                  // - Starting Time
+                  // - Brevet Control Distance
+                  // - Rows with values in the KM field
+                  function() {
+                    $("#errors").text("");
+                    let worksheet_rows = [];
+                    let worksheet = {}
+                    let start_time = $("#begin_date").val();
+                    let brevet_dist = $("#brevet_dist_km option:selected").val();
+                    let rows = $('table[class="control_time_table"] > tbody > tr[class="control"]');
+                    console.log("Begin iterating");
+                    $(rows.get().reverse()).each(function (idx, row) {
+                      let col_pre = 'table[class="control_time_table"] > tbody > tr[class="control"]:nth(' + idx + ') > td:nth(';
+                      let km = col_pre + '1) > input';
+                      let loc = col_pre + '2) > input';
+                      let worksheet_row = {};
+                      worksheet_row['row_id'] = parseInt(idx);
+                      worksheet_row['km'] = parseInt($(km).val());
+                      worksheet_row['loc'] = $(loc).val();
+                      worksheet_rows.push(worksheet_row);
                     });
-              $('input[name="SubmitWorksheetButton"]').on('click', 
-                // Collects and POSTs
-                // - Starting Time
-                // - Brevet Control Distance
-                // - Rows with values in the KM field
-                function() {
-                  let worksheet_rows = [];
-                  let worksheet = {}
-                  let start_time = $("#begin_date").val();
-                  let brevet_dist = $("#brevet_dist_km option:selected").val();
-                  let rows = $('table[class="control_time_table"] > tbody > tr[class="control"]');
-                  console.log("Begin iterating");
-                  $(rows.get().reverse()).each(function (idx, row) {
-                    let col_pre = 'table[class="control_time_table"] > tbody > tr[class="control"]:nth(' + idx + ') > td:nth(';
-                    let km = col_pre + '1) > input';
-                    let loc = col_pre + '2) > input';
-                    let worksheet_row = {};
-                    worksheet_row['row'] = parseInt(idx);
-                    worksheet_row['km'] = parseInt($(km).val());
-                    worksheet_row['loc'] = $(loc).val();
-                    worksheet_rows.push(worksheet_row);
-                  });
-                  console.log("Finished Iterating, now to send the worksheet to the server");
-                  worksheet["worksheet"] = worksheet_rows;
-                  worksheet["start_time"] = start_time;
-                  worksheet["brevet_dist"] = brevet_dist;
-                  $.ajax({
-                    type: 'POST',
-                    url: '/_save_worksheet',
-                    data: JSON.stringify(worksheet),
-                    complete: (data, status_msg) => {
-                      console.log("Received: " + JSON.stringify(data));
-                      if (data.message != "") {
-                        console.log("Displaying Error");
-                        $("#errors").html(data.message)
-                      } else {
-                        console.log("Resetting Worksheet");
-                        reset_worksheet();
-                      }
-                    },
-                    dataType: 'json'
-                  });
-                }
+                    console.log("Finished Iterating, now to send the worksheet to the server");
+                    worksheet["worksheet"] = worksheet_rows;
+                    worksheet["start_time"] = start_time;
+                    worksheet["brevet_dist"] = brevet_dist;
+                    $.ajax({
+                      type: 'POST',
+                      url: '/_save_worksheet',
+                      data: JSON.stringify(worksheet),
+                      contentType: "application/json",
+                      complete: (data, status_msg) => {
+                        let msg = data.responseJSON.message;
+                        console.log("Received: '" + msg + "'")
+                        if (msg != "") {
+                          $("#errors").css('color', 'red').text(msg)
+                        } else {
+                          reset_worksheet();
+                        }
+                      },
+                      dataType: 'json'
+                    });
+                  }
               );
               $('input[name="DisplayWorksheetButton"]').on('click', 
                 function() {
+                  let error_msg = "";
                   $.get('/_restore_worksheet', function(data) {
                     if (Object.hasOwn(data, 'data')) {
                       if ((Object.hasOwn(data.data, 'worksheet')) && (Object.hasOwn(data.data, 'start_time'))) {
-                        $("#begin_date").val(data.data.start_time);
+                        console.log("Begin Date: " + data.data.start_time);
+                        $("#begin_date").val(data.data.start_time).change();
                         let start_time = $("input[id='begin_date']").val();
                         let worksheet = data.data.worksheet;
+                        let brevet_control_dist = data.data.brevet_dist;
+                        let brevet_dist = $("#brevet_dist_km option[value='" + brevet_control_dist + "']").attr("selected", "selected");
                         worksheet.forEach((element, idx) => {
+                          console.log("ELEMENT.KM: " + element.km);
                           let el_km = element.km ? element.km : 0;
                           if (el_km == 0 && idx != 0) {
+                            console.log(idx + " is an empty row");
                             return;
                           }
                           let el_loc = element.loc ? element.loc : "";
-                          let row_num = element.row;
+                          let row_num = element.row_id;
                           let col_selector_pre = 'table[class="control_time_table"] > tbody > tr[class="control"]:nth(' + row_num + ') > td:nth(';
                           let km = col_selector_pre + '1) > input';
                           let loc = col_selector_pre + '2) > input';
                           $(km).eq(0).val(el_km);
                           $(loc).eq(0).val(el_loc);
                           $(km).trigger('change');
-                          });
+                        });
+                      } else if (Object.hasOwn(data.data, "error")) {
+                        error_msg = data.data.error;
                       } else {
-                        console.log("Server Sent Garbage");
-                        $("#errors").html("Server Sent Garbage!");
+                        error_msg = "Server Sent Garbage!";
                       }
                     } else {
-                      console.log("Server Sent Garbage");
-                      $("#errors").html("Server Sent Garbage!");
+                      error_msg = "Server Sent Garbage!";
                     }
                   });
+                  $("#errors").css("color", "red").text(error_msg);
                 });
              });
          </script>

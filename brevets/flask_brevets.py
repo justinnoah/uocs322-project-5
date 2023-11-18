@@ -4,64 +4,32 @@ Replacement for RUSA ACP brevet time calculator
 
 """
 
-import copy
 import logging
-from os import error
+from typing import final
 
 import arrow
 import flask
 from flask import request
 
 import acp_times  # Brevet time calculations
+import database as db
 import config
-from pymongo import MongoClient
-import pymongo
-
-def init_db():
-    client = MongoClient("mongodb://db:27017/")
-    db = client["brevets"]
-
-    datum = {'km': 0, 'loc': "", 'row': 0}
-    data = []
-    for i in range(0, 20):
-        d = copy.deepcopy(datum)
-        d['row'] += i
-        data.append(d)
-    ws = {
-        "timestamp": arrow.utcnow().format(MGFMT),
-        "worksheet": data,
-        "start_time": "1982-01-01T00:00",
-    }
-    db.worksheets.insert_one(ws)
-    return (client, db)
 
 ###
 # Globals
 ###
-app = flask.Flask(__name__)
+def init_app():
+    app = flask.Flask(__name__)
+    with app.app_context():
+        app.before_request(db.db_in_g)
+        db.init_db()
+    return app
+
+
+app = init_app()
 CONFIG = config.configuration()
 DTFMT = 'YYYY-MM-DDTHH:mm'
-MGFMT = f"{DTFMT}:ss"
-(client, db) = init_db()
 
-
-def insert_ws(worksheet):
-    ws = {
-        "timestamp": arrow.utcnow().format(MGFMT),
-        "start_time": worksheet["start_time"],
-        "worksheet": worksheet["worksheet"]
-    }
-    db.worksheets.insert_one(ws)
-
-def latest_ws():
-    document = db.worksheets.find_one(sort=[("timestamp", pymongo.DESCENDING)])
-    worksheet = {"worksheet": {}, "start_time": "2021-01-21T00:00"}
-    if document:
-        worksheet["worksheet"] = document["worksheet"]
-        worksheet["start_time"] = document["start_time"]
-    return worksheet
-
-###
 # Pages
 ###
 
@@ -110,13 +78,11 @@ def validate_worksheet(worksheet):
     brevet_dist_k = "brevet_dist" in keys
     worksheet_k = "worksheet" in keys
     if not start_time_k:
-        error_msg = "Missing Start Time"
+        return "Missing Start Time"
     elif not brevet_dist_k:
-        error_msg = "Missing Brevet Control Distance"
+        return "Missing Brevet Control Distance"
     elif not worksheet_k:
-        error_msg = "Missing Worksheet Data"
-    if error_msg != "":
-        return error_msg
+        return "Missing Worksheet Data"
 
     # Validate brevet control distance
     try:
@@ -124,37 +90,66 @@ def validate_worksheet(worksheet):
         bcd = round(float(worksheet["brevet_dist"]))
         # Range is (inclusive, exclusive)
         if bcd not in [200, 300, 400, 600, 1000]:
-            error_msg = f"Invalid brevet control distance: '{bcd}'"
+            return f"Invalid brevet control distance: '{bcd}km'"
     except:
-        error_msg = "Brevet Control Distance is invalid: \'{worksheet['brevet_dist']}\'"
-
-    if error_msg != "":
-        return error_msg
+        return "Brevet Control Distance is invalid: '{worksheet['brevet_dist']}'"
 
     # Validate no skipped rows
     # Start at the last row and work backwards.
     # There must be no empty rows before the final row entry
-    latest_zero_row = len(worksheet["worksheet"])
-    latest_valid_row = len(worksheet["worksheet"])
-    for row in reversed(sorted(worksheet["worksheet"], key=lambda r: r["row"])):
-        # If a zero row was found after a valid row, that's an error
-        if latest_valid_row > latest_zero_row:
-            error_msg = f"Invalid control distance in row \'{row['id']}\': \'{row['km']}\'"
-            break
+    final_row_id = -1
+    the_worksheet = worksheet["worksheet"]
+    brevet_dist = round(float(worksheet["brevet_dist"]))
+    # allow for a maximum final control km of 20% over the brevet control
+    prev_km = brevet_dist * 1.2 
+    # Reversed row order to skip over the empty lines of the worksheet more easily
+    for row in reversed(sorted(the_worksheet, key=lambda r: r["row_id"])):
+        _id = int(row['row_id'])
+        id_one_idxd = _id + 1
+        km = row['km']
+        zeros = ["0", 0]
 
-        curr_row_km = row["km"]
-        if curr_row_km in ["0", 0, ""]:
-            latest_zero_row = row['id']
-        else:
-            try:
-                km = round(float(curr_row_km))
-                latest_valid_row = row["id"]
-            except:
-                error_msg = f"Invalid control distance in row \'{row['id']}\': \'{row['km']}\'"
-                return error_msg
+        # Skip empty rows at the bottom of the worksheet
+        if _id != 0 and (km == "" or km is None) and final_row_id == -1:
+            continue
 
-    return error_msg
+        # If this is the first row of the worksheet and it is empty in the km slot, error
+        if _id == 0 and final_row_id == -1:
+            return f"The worksheet is empty, not submitting."
 
+        # Check for an empty line within the control rows of the worksheet
+        if (km in zeros or km is None) and final_row_id != -1 and _id != 0:
+            return f"Invalid kilometers in row {id_one_idxd}"
+
+        try:
+            brevet_dist = round(float(brevet_dist))
+        except:
+            return f"An invalid brevet control distance received: '{brevet_dist}'"
+
+        # Parse the kilometers of this row as an int, return an error otherwise
+        try:
+            row['km'] = round(float(row['km']))
+            km = row['km']
+        except:
+            return f"Unable to parse '{row['km']}' as a number."
+
+        # The first row with something in the km slot has been found
+        if km > 0 and final_row_id == -1:
+            if km > prev_km:
+                return f"The final control distance must be between {brevet_dist} and {prev_km}."
+            # If the last row in the worksheet has a value less than brevet_dist, that's an error
+            if km < brevet_dist:
+                return f"The last control point ({km}km) must be at least {brevet_dist}km. Please try again."
+            final_row_id = _id
+
+        # Verify the kilometers in the rows grow sequentially
+        if km > prev_km and final_row_id != -1:
+            return f"{km}km in row {id_one_idxd} is greater than {prev_km}km in row {id_one_idxd + 1}."
+
+        if km > 0 and final_row_id != -1:
+            prev_km = km
+
+    return f""
 
 @app.route('/_save_worksheet', methods=["POST"])
 def store_worksheet():
@@ -162,20 +157,16 @@ def store_worksheet():
     app.logger.debug(f"Request Data: {worksheet}")
 
     message = validate_worksheet(worksheet)
-    if message != "":
-        insert_ws(worksheet)
+    if message == "":
+        db.insert_worksheet(worksheet)
 
     return flask.jsonify(message=message)
 
 @app.route('/_restore_worksheet', methods=["GET"])
 def send_worksheet():
-    latest = latest_ws()
+    latest = db.latest_worksheet()
     app.logger.debug("SENDING WORKSHEET: %s" % latest)
-    if latest:
-        return flask.jsonify(data=latest)
-    else:
-        return flask.jsonify(data={})
-
+    return flask.jsonify(data=latest)
 
 #############
 

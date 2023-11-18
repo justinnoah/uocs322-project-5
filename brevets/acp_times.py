@@ -61,9 +61,11 @@ def close_time(control_dist_km, brevet_dist_km, brevet_start_time):
        An arrow object indicating the control close time.
        This will be in the same time zone as the brevet start time.
     """
+
+    # Round the control km per rules
     rounded_control_km = round(control_dist_km)
+    # Make sure the control isn't larger than the brevet control distance
     clamp_km = rounded_control_km if brevet_dist_km > rounded_control_km else brevet_dist_km
-    start_time = arrow.get(brevet_start_time)
     hours_to_shift = 0
 
     # timing rules by spec
@@ -82,5 +84,5 @@ def close_time(control_dist_km, brevet_dist_km, brevet_start_time):
     hours, minutes_float = math.modf(hours_to_shift)
     minutes = round(minutes_float *  60)
     # Return brevet_start_time shifted by calculated time
-    return start_time.shift(hours=hours, minutes=minutes)
+    return brevet_start_time.shift(hours=hours, minutes=minutes)
 
