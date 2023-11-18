@@ -16,11 +16,6 @@ brevet_controls = {
     1000: { 'min_speed': 11.428, 'max_speed': 26.0, 'max_time': 75.0 },
 }
 
-#  You MUST provide the following two functions
-#  with these signatures. You must keep
-#  these signatures even if you don't use all the
-#  same arguments.
-#
 def open_time(control_dist_km, brevet_dist_km, brevet_start_time):
     """
     Args:
@@ -82,13 +77,14 @@ def close_time(control_dist_km, brevet_dist_km, brevet_start_time):
     clamp_km = rounded_control_km if brevet_dist_km > rounded_control_km else brevet_dist_km
     # A variable to accumulate the hours to shift
     hours_to_shift = 0
+    # Convenience dictionaries for indexing brevet controls by distance and
+    # retreiving info for other controls
     brevets_idx_dist = dict([(idx, key) for idx, key in enumerate(sorted(brevet_controls.keys()))])
     brevets_dist_idx = dict([(key, idx) for idx, key in enumerate(sorted(brevet_controls.keys()))])
 
     ## timing rules per the spec ##
     if clamp_km <= 60:
         # handle the 0-60km specific rule
-
         # start with one hour
         hours_to_shift = 1
         # then add the specific adjustment according to the rules
@@ -99,21 +95,31 @@ def close_time(control_dist_km, brevet_dist_km, brevet_start_time):
     else:
         # handle all other cases
         for dist in brevet_controls.keys():
+            # skip distance over the brevet control distance
             if dist > brevet_dist_km:
                 continue
+            # Get the previous index of brevet controls
             prev_idx = brevets_dist_idx[dist] - 1
+            # if the previous control is 0 or higher, we can use the previous control
             if prev_idx >= 0:
+                # Since we have a previous, get the distance
                 prev_dist = brevets_idx_dist[prev_idx]
+                # If the clamped distance is between the previous and current distances
                 if prev_dist < clamp_km < dist:
+                    # if the distance is 600km or less, the time shift is the clamped distance
+                    # divided by the min speed of 15kph for that control
                     if clamp_km <= 600:
                         hours_to_shift = clamp_km / 15.0
+                    # otherwise start with the max time for the 600km and add the time for the
+                    # clamped distance divided by the 1000km min speed
                     else:
                         hours_to_shift = 27.0 + (clamp_km / 11.428)
+                    # Since all times are now added to the shift, break the loop
                     break
+            # if the distance is 60km < distance <= 200km
             else:
-                time = dist / brevet_controls[0]['min_speed']
-                hours_to_shift = time
-
+                # The time is simply the distance divided by the minimum speed for the 200km control
+                hours_to_shift = dist / brevet_controls[0]['min_speed']
 
     # Separate the floating point value into hours and minutes as a decimal value of hours
     hours, minutes_float = math.modf(hours_to_shift)

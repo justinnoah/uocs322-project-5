@@ -51,14 +51,18 @@ def insert_worksheet(worksheet, collection=None):
     else:
         collection.insert_one(ws)
 
-def latest_worksheet():
-    document = g.worksheets.find_one(sort=[("timestamp", pymongo.DESCENDING)])
+def latest_worksheet(collection=None):
+    if collection is None:
+        collection = g.worksheets
+    else:
+        collection = collection
+    document = collection.find_one(sort=[("timestamp", pymongo.DESCENDING)])
     worksheet = dict()
     if document is not None:
         worksheet["worksheet"] = document["worksheet"]
         worksheet["start_time"] = document["start_time"]
         worksheet["brevet_dist"] = document["brevet_dist"]
-    elif g.worksheets.count() == 0:
+    elif collection.count_documents() == 0:
         worksheet["error"] = "No worksheets in the database yet!"
     else:
         worksheet["error"] = "This shouldn't happen"
