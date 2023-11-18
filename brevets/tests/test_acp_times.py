@@ -69,3 +69,12 @@ def test_open_434km_in_600km_brevet():
     actual = arrow.get(start).shift(hours=+12.77).format(DTFMT)
     print("actual: %s" % actual)
     assert actual == result
+
+def test_close_434_in_600km_brevet():
+    start = arrow.get("2023-11-07T03:00")
+    result = close_time(434, 600, start).format(DTFMT)
+    print(f"start: {start.format(DTFMT)}")
+    print(f"result: {result}")
+    actual = arrow.get(start).shift(hours=28, minutes=56).format(DTFMT)
+    print(f"actual: {actual}")
+    assert actual == result

@@ -33,9 +33,8 @@ def init_db():
     if current_app.testing == True:
         worksheets_test = g.db.worksheets_test
         g.worksheets_test = worksheets_test
-        wst_count = worksheets_test.count_documents({})
-        if wst_count is None or wst_count == 0:
-            insert_worksheet(ws, g.worksheets_test)
+        worksheets_test.drop()
+        insert_worksheet(ws, g.worksheets_test)
     elif ws_count == 0 or ws_count is None:
         insert_worksheet(ws)
 
